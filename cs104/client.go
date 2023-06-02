@@ -63,6 +63,7 @@ type Client struct {
 
 	onConnect        func(c *Client)
 	onConnectionLost func(c *Client)
+    onDtStartConfirm func(c *Client)
 }
 
 // NewClient returns an IEC104 master,default config and default asdu.ParamsWide params
@@ -77,6 +78,7 @@ func NewClient(handler ClientHandlerInterface, o *ClientOption) *Client {
 		Clog:             clog.NewLogger("cs104 client => "),
 		onConnect:        func(*Client) {},
 		onConnectionLost: func(*Client) {},
+        onDtStartConfirm: func(client *Client) {},
 	}
 }
 
@@ -90,10 +92,17 @@ func (sf *Client) SetOnConnectHandler(f func(c *Client)) *Client {
 
 // SetConnectionLostHandler set connection lost handler
 func (sf *Client) SetConnectionLostHandler(f func(c *Client)) *Client {
-	if f != nil {
-		sf.onConnectionLost = f
-	}
-	return sf
+    if f != nil {
+        sf.onConnectionLost = f
+    }
+    return sf
+}
+
+func (sf *Client) SetOnDtActiveConfirm(f func(c *Client)) *Client {
+    if f != nil {
+        sf.onDtStartConfirm = f
+    }
+    return sf
 }
 
 // Start start the server,and return quickly,if it nil,the server will disconnected background,other failed
@@ -388,6 +397,7 @@ func (sf *Client) run(ctx context.Context) {
 				case uStartDtConfirm:
 					atomic.StoreUint32(&sf.isActive, active)
 					sf.startDtActiveSendSince.Store(willNotTimeout)
+                    sf.onDtStartConfirm(sf)
 				//case uStopDtActive:
 				//	sf.sendUFrame(uStopDtConfirm)
 				//	atomic.StoreUint32(&sf.isActive, inactive)
@@ -502,11 +512,11 @@ func (sf *Client) clientHandler(asduPack *asdu.ASDU) error {
 		}
 	}()
 
-	sf.Debug("ASDU %+v", asduPack)
+    sf.Debug("ASDU123 %+v", asduPack.Identifier.Type)
 
-	switch asduPack.Identifier.Type {
-	case asdu.C_IC_NA_1: // InterrogationCmd
-		return sf.handler.InterrogationHandler(sf, asduPack)
+    switch asduPack.Identifier.Type {
+    case asdu.C_IC_NA_1: // InterrogationCmd 召唤全数据
+        return sf.handler.InterrogationHandler(sf, asduPack)
 
 	case asdu.C_CI_NA_1: // CounterInterrogationCmd
 		return sf.handler.CounterInterrogationHandler(sf, asduPack)
